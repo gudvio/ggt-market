@@ -1062,4 +1062,58 @@ const CATS=["Všetky", "Farbičky", "Fixky", "Krúžidlá", "Nožnice", "Náčrt
     });
   }
 
->
+  // ── PUBLIC API ──────────────────────────────────────────────────────────────
+  window.GGT = {
+    setCat: function(cat){ st.cat = cat; buildCats(); render(); },
+    onSearch: function(v){
+      st.q = v.toLowerCase().trim();
+      var sc = document.getElementById('sclr');
+      if(sc) sc.className = 'sclr' + (st.q ? ' show' : '');
+      render();
+    },
+    clearSearch: function(){
+      st.q = '';
+      var sinp = document.getElementById('sinp'), sc = document.getElementById('sclr');
+      if(sinp) sinp.value = '';
+      if(sc) sc.className = 'sclr';
+      render();
+    },
+    toggleDD: function(){
+      var sb = document.getElementById('sortbtn'), dd = document.getElementById('sortdd');
+      sb.classList.toggle('open'); dd.classList.toggle('open');
+    },
+    setSort: function(k, lbl){
+      st.sort = k;
+      var sl = document.getElementById('sortlbl'); if(sl) sl.textContent = lbl;
+      var sb = document.getElementById('sortbtn'), dd = document.getElementById('sortdd');
+      sb.classList.remove('open'); dd.classList.remove('open');
+      dd.querySelectorAll('.sopt').forEach(function(o){
+        o.classList.toggle('active', o.textContent.trim() === lbl);
+      });
+      render();
+    },
+    setView: function(v){
+      st.view = v;
+      document.getElementById('vg').className = 'vbtn' + (v==='grid' ? ' active' : '');
+      document.getElementById('vl').className = 'vbtn' + (v==='list' ? ' active' : '');
+      render();
+    }
+  };
+
+  // ── INIT ────────────────────────────────────────────────────────────────────
+  document.addEventListener('DOMContentLoaded', function() {
+    ['pmo','lmo','amo'].forEach(function(id){ document.getElementById(id).style.display='none'; });
+    persistLoad(function() {
+      applyEV();
+      applyHero();
+      buildCtls();
+      rebuildCatCounts();
+      buildCats();
+      render();
+    });
+  });
+
+})();
+</script>
+</body>
+</html>
