@@ -780,8 +780,8 @@ const CATS=["Všetky", "Farbičky", "Fixky", "Krúžidlá", "Nožnice", "Náčrt
   }
 
   function doUpload() {
-    if(!xf && !zf){ setStatus('st-err','Vyberte aspo\u0148 jeden s\u00fabor.'); return; }
-    setStatus('st-ld','Sprac\u00f3vavam s\u00fabory\u2026');
+    if(!xf && !zf){ setStatus('st-err','Vyberte aspoň jeden súbor.'); return; }
+    setStatus('st-ld','Spracóvavam súbory…');
 
     var steps = [];
     if(xf) steps.push(processExcel());
@@ -794,9 +794,9 @@ const CATS=["Všetky", "Farbičky", "Fixky", "Krúžidlá", "Nožnice", "Náčrt
         if(r && r.images) Object.assign(newImages, r.images);
       });
 
-      // 1. Aplikuj produkty
+      // Apply new products
       if(newProducts && newProducts.length > 0) {
-        newProducts.forEach(function(p) {
+        newProducts.forEach(function(p){
           p.imgSm = newImages[p.code] || '';
           p.imgLg = p.imgSm;
         });
@@ -809,31 +809,36 @@ const CATS=["Všetky", "Farbičky", "Fixky", "Krúžidlá", "Nožnice", "Náčrt
         }
       }
 
-      // 2. Ulož lokálne (rýchly fallback) + na server pre všetkých
+      // Save locally and rebuild UI immediately
       persistSave(PRODUCTS.slice(), Object.keys(newImages).length ? newImages : null);
-      var imgsToSend = Object.keys(newImages).length ? newImages : null;
-      setStatus('st-ld', 'Ukladám na server…');
-      persistSaveToServer(PRODUCTS.slice(), imgsToSend, EV, HERO, function(ok, err){
-        if(ok) {
-
-      // 3. Prebuduj UI
       rebuildCatCounts();
       buildCats();
       render();
 
-      var msg = [];
-      if(newProducts) msg.push(newProducts.length + ' produktov');
-      if(Object.keys(newImages).length) msg.push(Object.keys(newImages).length + ' obrázkov');
-      setStatus('st-ok', '✓ ' + msg.join(', ') + ' úspešne uložených!');      xf=zf=null;
-      ['inx','inz'].forEach(function(id){ var e=document.getElementById(id); if(e) e.value=''; });
-      ['uzx','uzz'].forEach(function(id){ var e=document.getElementById(id); if(e) e.classList.remove('has'); });
-      document.getElementById('xllbl').textContent='Kliknite alebo presu\u0148te s\u00fabor sem';
-      document.getElementById('zplbl').textContent='Kliknite alebo presu\u0148te s\u00fabor sem';
+      // Save to server in background
+      var imgsToSend = Object.keys(newImages).length ? newImages : null;
+      setStatus('st-ld', 'Ukladám na server…');
+      persistSaveToServer(PRODUCTS.slice(), imgsToSend, EV, HERO, function(ok, err){
+        var msg = [];
+        if(newProducts) msg.push(newProducts.length + ' produktov');
+        if(Object.keys(newImages).length) msg.push(Object.keys(newImages).length + ' obrázkov');
+        if(ok) {
+          setStatus('st-ok', '✓ ' + msg.join(', ') + ' uložených pre všetkých!');
+        } else {
+          setStatus('st-ok', '✓ ' + msg.join(', ') + ' uložených lokálne. (Server: ' + (err||'nedostupný') + ')');
+        }
+        xf=zf=null;
+        ['inx','inz'].forEach(function(id){ var e=document.getElementById(id); if(e) e.value=''; });
+        ['uzx','uzz'].forEach(function(id){ var e=document.getElementById(id); if(e) e.classList.remove('has'); });
+        document.getElementById('xllbl').textContent='Kliknite alebo presuňte súbor sem';
+        document.getElementById('zplbl').textContent='Kliknite alebo presuňte súbor sem';
+      });
 
     }).catch(function(err){
       setStatus('st-err','Chyba: ' + (err.message || String(err)));
     });
   }
+
 
   function processExcel() {
     return new Promise(function(resolve, reject) {
