@@ -855,21 +855,24 @@ const CATS=["Všetky", "Farbičky", "Fixky", "Krúžidlá", "Nožnice", "Náčrt
           function findCol(kws) {
             return keys.find(function(k){ var kl=k.toLowerCase(); return kws.some(function(kw){ return kl.indexOf(kw)>=0; }); })||null;
           }
+          // Detekcia stĺpcov — zodpovedá presným názvom z GGT Excel súboru
           var cCode = findCol(['kód','kod','code','spin','číslo']);
-          var cName = findCol(['názov','nazov','name','produkt','popis','opis','tovar']);
-          var cQty  = findCol(['množstvo','mnozstvo','qty','quantity','počet','ks','bal','objem','sklad']);
-          var cOld  = findCol(['cena x','x_6','bez zl','before','pôvodn','origin','skladov','nakup']);
-          var cNew  = findCol(['po zl','after','s dph','predajn','final','výpredaj','akcia','zlava']);
-          var cUnit = findCol(['mj','jednotka','unit','bal','ks']);
+          var cName = findCol(['názov','nazov','name','produkt','popis','tovar']);
+          var cQty  = findCol(['množstvo','mnozstvo','qty','quantity','počet']);
+          var cOld  = findCol(['cena x_6','x_6','cena x','bez zl','nakup','pôvodn']);
+          var cNew  = findCol(['predajná cena','po zĺave s dph','po zlave','predajn','s dph','after','final']);
+          var cUnit = findCol(['mj','jednotka','unit']);
 
-          // Debug: log detected columns
-          console.log('Excel columns:', keys);
-          console.log('Detected - code:', cCode, 'name:', cName, 'qty:', cQty, 'old:', cOld, 'new:', cNew, 'unit:', cUnit);
+          console.log('Excel stĺpce:', keys);
+          console.log('Detekové: kód=', cCode, 'názov=', cName, 'množstvo=', cQty, 'cena-pôv=', cOld, 'cena-nová=', cNew, 'mj=', cUnit);
 
-          // Fallback: if name not found, use second column; if code not found, use first
-          if(!cCode && keys.length > 0) cCode = keys[0];
-          if(!cName && keys.length > 1) cName = keys[1];
-          if(!cQty  && keys.length > 2) cQty  = keys[2];
+          // Fallback — použi poradové stĺpce ak detekcia zlyhá
+          if(!cCode) cCode = keys[0];
+          if(!cName) cName = keys[1];
+          if(!cQty)  cQty  = keys[2];
+          if(!cOld)  cOld  = keys[3];
+          if(!cNew)  cNew  = keys[5];  // Col 6 = Predajná cena v € po zľave s DPH
+          if(!cUnit) cUnit = keys[6];  // Col 7 = Mj
 
           var products = [];
           rows.forEach(function(row){
