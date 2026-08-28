@@ -330,10 +330,6 @@ const CATS=["Všetky", "Farbičky", "Fixky", "Krúžidlá", "Nožnice", "Náčrt
   ];
 
   // Event info — loaded from localStorage or defaults
-// ── Netlify Functions API ─────────────────────────────────────────────────────
-  var API_BASE = '/.netlify/functions';
-  var ADMIN_SECRET = localStorage.getItem('ggt_admin_secret') || '';
-
   var HERO = {
     h1:  localStorage.getItem('ggt_hero_h1')  || 'Zamestnanecký<br><em>Výpredaj</em> 2026',
     sub: localStorage.getItem('ggt_hero_sub') || 'Až −30% na vybrané produkty!<br>Využite špeciálne ceny na to najlepšie z našej ponúky.',
@@ -360,7 +356,6 @@ const CATS=["Všetky", "Farbičky", "Fixky", "Krúžidlá", "Nožnice", "Náčrt
     localStorage.setItem('ggt_hero_sub', sub);
     localStorage.setItem('ggt_hero_btn', btn);
     applyHero();
-    persistSaveToServer(null, null, null, HERO, function(ok){});
     var s = document.getElementById('adm-hero-status');
     s.style.display='flex'; s.className='stmsg st-ok'; s.textContent='✓ Texty uložené pre všetkých!';
   }
@@ -710,8 +705,6 @@ const CATS=["Všetky", "Farbičky", "Fixky", "Krúžidlá", "Nožnice", "Náčrt
     var pw = document.getElementById('lpw').value;
     if(pw === APW){ 
       adminOk = true; 
-      ADMIN_SECRET = pw;
-      localStorage.setItem('ggt_admin_secret', pw);
       closeLmo(); openAmo(); 
     }
     else{ document.getElementById('lerr').style.display='block'; document.getElementById('lpw').className='linp err'; document.getElementById('lpw').value=''; document.getElementById('lpw').focus(); }
@@ -741,6 +734,357 @@ const CATS=["Všetky", "Farbičky", "Fixky", "Krúžidlá", "Nožnice", "Náčrt
   var xf=null, zf=null;
   function onXl(inp){ xf=inp.files[0]; if(xf){ document.getElementById('uzx').classList.add('has'); document.getElementById('xllbl').textContent=xf.name; } }
   function onZp(inp){ zf=inp.files[0]; if(zf){ document.getElementById('uzz').classList.add('has'); document.getElementById('zplbl').textContent=zf.name; } }
+
+  function setStatus(cls, msg) {
+    var s = document.getElementById('ast');
+    s.style.display = 'flex'; s.className = 'stmsg ' + cls; s.textContent = msg;
+  }
+
+  function normStr(s) {
+    return s.toLowerCase()
+      .replace(/[áä]/g,'a').replace(/č/g,'c').replace(/ď/g,'d')
+      .replace(/[éě]/g,'e').replace(/í/g,'i').replace(/[ľĺ]/g,'l')
+      .replace(/[ňń]/g,'n').replace(/[óô]/g,'o').replace(/[ŕř]/g,'r')
+      .replace(/[šś]/g,'s').replace(/ť/g,'t').replace(/[úů]/g,'u')
+      .replace(/ý/g,'y').replace(/[žź]/g,'z');
+  }
+  function getCatFromName(name) {
+    var n = normStr(name);
+    if(n.indexOf('farbic')>=0) return 'Farbičky';
+    if(n.indexOf('fixk')>=0||n.indexOf('fukacie')>=0) return 'Fixky';
+    if(n.indexOf('kruzidlo')>=0) return 'Krúžidlá';
+    if(n.indexOf('nacrtnik')>=0) return 'Náčrtníky';
+    if(n.indexOf('noznice')>=0) return 'Nožnice';
+    if(n.indexOf('obal')>=0) return 'Obaly';
+    if(n.indexOf('pastelk')>=0) return 'Pastelky';
+    if(n.indexOf('peracnik')>=0) return 'Peračníky';
+    if(n.indexOf('pero ')>=0||n.indexOf('plniace')>=0) return 'Perá';
+    if(n.indexOf('popisovac')>=0) return 'Popisovače';
+    if(n.indexOf('puzdro')>=0) return 'Puzdra';
+    if(n.indexOf('roller')>=0) return 'Rollery';
+    if(n.indexOf('skicar')>=0) return 'Skicáre';
+    if(n.indexOf('stetc')>=0) return 'Štetce';
+    if(n.indexOf('temperov')>=0) return 'Temperové farby';
+    if(n.indexOf('vodov')>=0) return 'Vodové farby';
+    if(n.indexOf('voskov')>=0) return 'Voskovky';
+    if(n.indexOf('zmizik')>=0) return 'Zmizíky';
+    if(n.indexOf('zosit')>=0) return 'Zošity';
+    return 'Ostatné';
+  }
+
+  function doUpload() {
+    if(!xf && !zf){ setStatus('st-err','Vyberte aspoň jeden súbor.'); return; }
+    setStatus('st-ld','Spracovávam súbory…');
+
+    var steps = [];
+    if(xf) steps.push(processExcel());
+    if(zf) steps.push(processZip());
+
+    Promise.all(steps).then(function(results){
+      var newProducts = null, newImages = {};
+      results.forEach(function(r){
+        if(r && r.products) newProducts = r.products;
+        if(r && r.images)   Object.assign(newImages, r.images);
+      });
+
+      // Merge images into products
+      if(newProducts && newProducts.length){
+        newProducts.forEach(function(p){
+          var img = newImages[p.code] || '';
+          // try existing product image
+          if(!img){
+            for(var i=0;i<PRODUCTS.length;i++){
+              if(PRODUCTS[i].code===p.code){ img=PRODUCTS[i].imgSm||''; break; }
+            }
+          }
+          p.imgSm = img; p.imgLg = img;
+        });
+        PRODUCTS.length = 0;
+        newProducts.forEach(function(p){ PRODUCTS.push(p); });
+      } else if(Object.keys(newImages).length){
+        for(var i=0;i<PRODUCTS.length;i++){
+          var img = newImages[PRODUCTS[i].code];
+          if(img){ PRODUCTS[i].imgSm=img; PRODUCTS[i].imgLg=img; }
+        }
+      }
+
+      // Save to IndexedDB for this browser
+      persistSave(PRODUCTS.slice(), Object.keys(newImages).length ? newImages : null);
+      rebuildCatCounts(); buildCats(); render();
+
+      var msg = [];
+      if(newProducts) msg.push(newProducts.length + ' produktov');
+      if(Object.keys(newImages).length) msg.push(Object.keys(newImages).length + ' obrázkov');
+      
+      setStatus('st-ld', '✓ ' + msg.join(', ') + ' načítaných. Generujem nový súbor…');
+      
+      // Generate downloadable index.html with embedded new data
+      setTimeout(function(){
+        generateAndDownload(PRODUCTS.slice(), newImages);
+      }, 300);
+
+      xf=zf=null;
+      ['inx','inz'].forEach(function(id){ var e=document.getElementById(id); if(e) e.value=''; });
+      ['uzx','uzz'].forEach(function(id){ var e=document.getElementById(id); if(e) e.classList.remove('has'); });
+      document.getElementById('xllbl').textContent='Kliknite alebo presuňte súbor sem';
+      document.getElementById('zplbl').textContent='Kliknite alebo presuňte súbor sem';
+
+    }).catch(function(err){
+      setStatus('st-err','Chyba: ' + (err.message || String(err)));
+    });
+  }
+
+
+  function processExcel() {
+    return new Promise(function(resolve, reject) {
+      if(typeof XLSX === 'undefined'){ reject(new Error('XLSX kni\u017enica sa nena\u010d\u00edtala')); return; }
+      var reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          var wb = XLSX.read(new Uint8Array(e.target.result), {type:'array'});
+          var ws = wb.Sheets[wb.SheetNames[0]];
+          var rows = XLSX.utils.sheet_to_json(ws, {defval:''});
+          if(!rows.length){ reject(new Error('Excel je pr\u00e1zdny')); return; }
+
+          var keys = Object.keys(rows[0]);
+          function findCol(kws) {
+            return keys.find(function(k){ var kl=k.toLowerCase(); return kws.some(function(kw){ return kl.indexOf(kw)>=0; }); })||null;
+          }
+          // Detekcia stĺpcov — zodpovedá presným názvom z GGT Excel súboru
+          var cCode = findCol(['kód','kod','code','spin','číslo']);
+          var cName = findCol(['názov','nazov','name','produkt','popis','tovar']);
+          var cQty  = findCol(['množstvo','mnozstvo','qty','quantity','počet']);
+          var cOld  = findCol(['cena x_6','x_6','cena x','bez zl','nakup','pôvodn']);
+          var cNew  = findCol(['predajná cena','po zĺave s dph','po zlave','predajn','s dph','after','final']);
+          var cUnit = findCol(['mj','jednotka','unit']);
+
+          console.log('Excel stĺpce:', keys);
+          console.log('Detekové: kód=', cCode, 'názov=', cName, 'množstvo=', cQty, 'cena-pôv=', cOld, 'cena-nová=', cNew, 'mj=', cUnit);
+
+          // Fallback — použi poradové stĺpce ak detekcia zlyhá
+          if(!cCode) cCode = keys[0];
+          if(!cName) cName = keys[1];
+          if(!cQty)  cQty  = keys[2];
+          if(!cOld)  cOld  = keys[3];
+          if(!cNew)  cNew  = keys[5];  // Col 6 = Predajná cena v € po zľave s DPH
+          if(!cUnit) cUnit = keys[6];  // Col 7 = Mj
+
+          var products = [];
+          rows.forEach(function(row){
+            var code = String(row[cCode]||'').trim().replace(/\.0+$/,'');
+            var name = String(row[cName]||'').trim();
+            if(!code||!name) return;
+            products.push({
+              code: code,
+              name: name,
+              qty:  parseInt(String(row[cQty]||0),10)||0,
+              priceBefore: Math.round(parseFloat(String(row[cOld]||0))*100)/100,
+              priceAfter:  Math.round(parseFloat(String(row[cNew]||0))*100)/100,
+              unit: String(row[cUnit]||'ks').trim(),
+              cat:  getCatFromName(name),
+              imgSm:'', imgLg:''
+            });
+          });
+          resolve({products: products});
+        } catch(err){ reject(err); }
+      };
+      reader.onerror = function(){ reject(new Error('Chyba \u010d\u00edtania Excel')); };
+      reader.readAsArrayBuffer(xf);
+    });
+  }
+
+  function processZip() {
+    return new Promise(function(resolve, reject) {
+      if(typeof JSZip === 'undefined'){ reject(new Error('JSZip kni\u017enica sa nena\u010d\u00edtala')); return; }
+      var reader = new FileReader();
+      reader.onload = function(e) {
+        JSZip.loadAsync(e.target.result).then(function(zip){
+          var items = [];
+          zip.forEach(function(relPath, file){
+            if(file.dir) return;
+            var fname = relPath.split('/').pop();
+            var ext   = fname.split('.').pop().toLowerCase();
+            if(['jpg','jpeg','png','webp'].indexOf(ext)<0) return;
+            var code  = fname.replace(/\.[^.]+$/,'').split('_')[0].split(' ')[0];
+            if(code) items.push({code:code, file:file, ext:ext});
+          });
+          if(!items.length){ resolve({images:{}}); return; }
+
+          var images={}, done=0;
+          items.forEach(function(item){
+            item.file.async('base64').then(function(b64){
+              var mime = item.ext==='webp'?'image/webp':item.ext==='png'?'image/png':'image/jpeg';
+              images[item.code] = 'data:'+mime+';base64,'+b64;
+              if(++done===items.length) resolve({images:images});
+            }).catch(function(){ if(++done===items.length) resolve({images:images}); });
+          });
+        }).catch(reject);
+      };
+      reader.onerror = function(){ reject(new Error('Chyba \u010d\u00edtania ZIP')); };
+      reader.readAsArrayBuffer(zf);
+    });
+  }
+
+  window.onXl=onXl; window.onZp=onZp; window.doUpload=doUpload;
+
+  // ── PUBLIC API ──────────────────────────────────────────────────────────────
+  window.GGT = {
+    setCat: function(cat){ st.cat = cat; buildCats(); render(); },
+    onSearch: function(v){
+      st.q = v.toLowerCase().trim();
+      var sc = document.getElementById('sclr');
+      if(sc) sc.className = 'sclr' + (st.q ? ' show' : '');
+      render();
+    },
+    clearSearch: function(){
+      st.q = '';
+      var sinp = document.getElementById('sinp'), sc = document.getElementById('sclr');
+      if(sinp) sinp.value = '';
+      if(sc) sc.className = 'sclr';
+      render();
+    },
+    toggleDD: function(){
+      var sb = document.getElementById('sortbtn'), dd = document.getElementById('sortdd');
+      sb.classList.toggle('open'); dd.classList.toggle('open');
+    },
+    setSort: function(k, lbl){
+      st.sort = k;
+      var sl = document.getElementById('sortlbl'); if(sl) sl.textContent = lbl;
+      var sb = document.getElementById('sortbtn'), dd = document.getElementById('sortdd');
+      sb.classList.remove('open'); dd.classList.remove('open');
+      dd.querySelectorAll('.sopt').forEach(function(o){
+        o.classList.toggle('active', o.textContent.trim() === lbl);
+      });
+      render();
+    },
+    setView: function(v){
+      st.view = v;
+      document.getElementById('vg').className = 'vbtn' + (v==='grid' ? ' active' : '');
+      document.getElementById('vl').className = 'vbtn' + (v==='list' ? ' active' : '');
+      render();
+    }
+  };
+
+  // ── INIT ────────────────────────────────────────────────────────────────────
+  // ── PERSIST: save/load uploaded data ────────────────────────────────────────
+  // ── Storage: IndexedDB for local session, download for sharing ────────────────
+  var IDB_NAME = 'ggt_store_v2';
+  var idbConn = null;
+
+  function openIDB(cb) {
+    if(idbConn){ cb(idbConn); return; }
+    var req = indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = function(e){
+      var db = e.target.result;
+      if(!db.objectStoreNames.contains('kv')) db.createObjectStore('kv');
+    };
+    req.onsuccess = function(e){ idbConn = e.target.result; cb(idbConn); };
+    req.onerror   = function(){ cb(null); };
+  }
+
+  function idbSet(key, val, cb) {
+    openIDB(function(db){
+      if(!db){ if(cb) cb(); return; }
+      var tx = db.transaction('kv','readwrite');
+      tx.objectStore('kv').put(val, key);
+      tx.oncomplete = function(){ if(cb) cb(); };
+      tx.onerror    = function(){ if(cb) cb(); };
+    });
+  }
+
+  function idbGet(key, cb) {
+    openIDB(function(db){
+      if(!db){ cb(null); return; }
+      var req = db.transaction('kv','readonly').objectStore('kv').get(key);
+      req.onsuccess = function(){ cb(req.result||null); };
+      req.onerror   = function(){ cb(null); };
+    });
+  }
+
+  function persistLoad(callback) {
+    // Load from IndexedDB (same browser persistence)
+    idbGet('products', function(prods){
+      if(prods && prods.length){
+        PRODUCTS.length = 0;
+        prods.forEach(function(p){ PRODUCTS.push(p); });
+        // Load images
+        var done = 0, total = PRODUCTS.length;
+        if(!total){ if(callback) callback(); return; }
+        PRODUCTS.forEach(function(p){
+          idbGet('img_' + p.code, function(img){
+            if(img){ p.imgSm = img; p.imgLg = img; }
+            if(++done === total && callback) callback();
+          });
+        });
+      } else {
+        // Use embedded PRODUCTS (default)
+        if(callback) callback();
+      }
+    });
+  }
+
+  function persistSave(prods, imgs) {
+    // Save products slim (no images)
+    var slim = (prods||[]).map(function(p){
+      return {code:p.code,name:p.name,qty:p.qty,priceBefore:p.priceBefore,
+              priceAfter:p.priceAfter,unit:p.unit,cat:p.cat,imgSm:'',imgLg:''};
+    });
+    idbSet('products', slim);
+    // Save images individually
+    if(imgs) Object.keys(imgs).forEach(function(code){
+      idbSet('img_' + code, imgs[code]);
+    });
+  }
+
+  // Generate and download updated HTML with new products+images embedded
+  function generateAndDownload(products, images) {
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', window.location.href, true);
+    xhr.responseType = 'text';
+    xhr.onload = function(){
+      if(xhr.status !== 200){ 
+        setStatus('st-err', 'Nepodarilo sa načítať stránku pre generovanie.');
+        return;
+      }
+      var src = xhr.responseText;
+      
+      // Replace PRODUCTS constant with new data
+      var newProds = products.map(function(p){
+        var img = images && images[p.code] ? images[p.code] : 
+                  (p.imgSm || '');
+        return Object.assign({}, p, {imgSm: img, imgLg: img});
+      });
+      
+      var prodsJson = JSON.stringify(newProds);
+      // Find and replace const PRODUCTS=[...];
+      var startIdx = src.indexOf('const PRODUCTS=[');
+      var endIdx   = src.indexOf(';', startIdx) + 1;
+      if(startIdx < 0 || endIdx <= 0){
+        setStatus('st-err', 'Nepodarilo sa nájsť PRODUCTS v zdrojovom kóde.');
+        return;
+      }
+      var newSrc = src.substring(0, startIdx) + 
+                   'const PRODUCTS=' + prodsJson +
+                   src.substring(endIdx);
+      
+      // Download
+      var blob = new Blob([newSrc], {type: 'text/html;charset=utf-8'});
+      var url  = URL.createObjectURL(blob);
+      var a    = document.createElement('a');
+      a.href   = url;
+      a.download = 'index.html';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(function(){ URL.revokeObjectURL(url); a.remove(); }, 1000);
+      
+      setStatus('st-ok', '✓ Súbor index.html stiahnutý! Nahraj ho na Netlify (Deploys → pretiahni súbor).');
+    };
+    xhr.onerror = function(){
+      // Fallback: generate from current page data
+      setStatus('st-err', 'Chyba načítania. Skús znova alebo použi lokálnu verziu.');
+    };
+    xhr.send();
+  }
 
   function setStatus(cls, msg) {
     var s = document.getElementById('ast');
