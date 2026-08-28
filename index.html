@@ -855,15 +855,21 @@ const CATS=["Všetky", "Farbičky", "Fixky", "Krúžidlá", "Nožnice", "Náčrt
           function findCol(kws) {
             return keys.find(function(k){ var kl=k.toLowerCase(); return kws.some(function(kw){ return kl.indexOf(kw)>=0; }); })||null;
           }
-          var cCode = findCol(['k\u00f3d','kod','code','spin']);
-          var cName = findCol(['n\u00e1zov','nazov','name','produkt']);
-          var cQty  = findCol(['mno\u017estvo','mnozstvo','qty','quantity','po\u010det']);
-          var cOld  = findCol(['cena x','x_6','bez zl','before','p\u00f4vodn\u00e1','puvodni']);
-          var cNew  = findCol(['po zl','after','s dph','predajn','final']);
-          var cUnit = findCol(['mj','jednotka','unit']);
+          var cCode = findCol(['kód','kod','code','spin','číslo']);
+          var cName = findCol(['názov','nazov','name','produkt','popis','opis','tovar']);
+          var cQty  = findCol(['množstvo','mnozstvo','qty','quantity','počet','ks','bal','objem','sklad']);
+          var cOld  = findCol(['cena x','x_6','bez zl','before','pôvodn','origin','skladov','nakup']);
+          var cNew  = findCol(['po zl','after','s dph','predajn','final','výpredaj','akcia','zlava']);
+          var cUnit = findCol(['mj','jednotka','unit','bal','ks']);
 
-          if(!cCode){ reject(new Error('Nenajden\u00fd st\u013apec K\u00f3d produktu')); return; }
-          if(!cName){ reject(new Error('Nenajden\u00fd st\u013apec N\u00e1zov produktu')); return; }
+          // Debug: log detected columns
+          console.log('Excel columns:', keys);
+          console.log('Detected - code:', cCode, 'name:', cName, 'qty:', cQty, 'old:', cOld, 'new:', cNew, 'unit:', cUnit);
+
+          // Fallback: if name not found, use second column; if code not found, use first
+          if(!cCode && keys.length > 0) cCode = keys[0];
+          if(!cName && keys.length > 1) cName = keys[1];
+          if(!cQty  && keys.length > 2) cQty  = keys[2];
 
           var products = [];
           rows.forEach(function(row){
