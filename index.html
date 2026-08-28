@@ -999,13 +999,16 @@ const CATS=["Všetky", "Farbičky", "Fixky", "Krúžidlá", "Nožnice", "Náčrt
   }
 
   function persistLoad(callback) {
-    // Najprv zobraz lokálne dáta okamžite (ak existujú)
+    // Step 1: Use embedded PRODUCTS immediately (always works, no network needed)
+    // embedded PRODUCTS const is already populated at startup
+    
+    // Step 2: Override with localStorage if available (from previous upload)
     try {
       var localProds = JSON.parse(localStorage.getItem('ggt_prods_slim') || 'null');
       if(localProds && localProds.length) {
         PRODUCTS.length = 0;
         localProds.forEach(function(p){ PRODUCTS.push(p); });
-        // Prirad obrázky zo sessionStorage
+        // Apply sessionStorage images
         for(var i=0;i<PRODUCTS.length;i++){
           var img = sessionStorage.getItem('ggt_img_' + PRODUCTS[i].code) || '';
           if(img){ PRODUCTS[i].imgSm = img; PRODUCTS[i].imgLg = img; }
@@ -1013,52 +1016,67 @@ const CATS=["Všetky", "Farbičky", "Fixky", "Krúžidlá", "Nožnice", "Náčrt
       }
     } catch(e){}
 
-    // Potom načítaj aktuálne dáta zo servera (pre všetkých)
+    // Step 3: Run callback immediately with what we have (embedded or local)
+    if(callback) callback();
+
+    // Step 4: Try to fetch fresh data from Netlify Functions in background
     fetch(API_BASE + '/data')
-    .then(function(r){ return r.json(); })
+    .then(function(r){ 
+      if(!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json(); 
+    })
     .then(function(d){
+      var updated = false;
       if(d.products && d.products.length) {
         PRODUCTS.length = 0;
         d.products.forEach(function(p){ PRODUCTS.push(p); });
         try { localStorage.setItem('ggt_prods_slim', JSON.stringify(d.products)); } catch(e){}
+        updated = true;
       }
-      // Načítaj obrázky zo servera pre každý produkt
+      if(d.eventInfo){ 
+        EV.date=d.eventInfo.date||EV.date; 
+        EV.time=d.eventInfo.time||EV.time; 
+        EV.location=d.eventInfo.location||EV.location; 
+        applyEV();
+      }
+      if(d.heroTexts){ 
+        HERO.h1=d.heroTexts.h1||HERO.h1; 
+        HERO.sub=d.heroTexts.sub||HERO.sub; 
+        HERO.btn=d.heroTexts.btn||HERO.btn; 
+        applyHero();
+      }
+      // Load images in background
       if(d.imageCodes && d.imageCodes.length) {
-        var loaded = 0;
         d.imageCodes.forEach(function(code){
-          // Skús sessionStorage najprv
           var cached = sessionStorage.getItem('ggt_img_' + code);
           if(cached){
             for(var i=0;i<PRODUCTS.length;i++){
               if(PRODUCTS[i].code===code){ PRODUCTS[i].imgSm=cached; PRODUCTS[i].imgLg=cached; break; }
             }
-            loaded++;
-            if(loaded === d.imageCodes.length && callback) callback();
           } else {
             fetch(API_BASE + '/data?what=image&code=' + code)
-            .then(function(r){ return r.json(); })
+            .then(function(r){ return r.ok ? r.json() : null; })
             .then(function(res){
-              if(res.img){
+              if(res && res.img){
                 try { sessionStorage.setItem('ggt_img_' + code, res.img); } catch(e){}
                 for(var i=0;i<PRODUCTS.length;i++){
-                  if(PRODUCTS[i].code===code){ PRODUCTS[i].imgSm=res.img; PRODUCTS[i].imgLg=res.img; break; }
+                  if(PRODUCTS[i].code===code){ 
+                    PRODUCTS[i].imgSm=res.img; 
+                    PRODUCTS[i].imgLg=res.img; 
+                    break; 
+                  }
                 }
+                render();
               }
-              loaded++;
-              if(loaded === d.imageCodes.length){ rebuildCatCounts(); buildCats(); render(); }
-            }).catch(function(){ loaded++; if(loaded===d.imageCodes.length){ rebuildCatCounts(); buildCats(); render(); } });
+            }).catch(function(){});
           }
         });
       }
-      // Aplikuj event info zo servera
-      if(d.eventInfo){ EV.date=d.eventInfo.date||EV.date; EV.time=d.eventInfo.time||EV.time; EV.location=d.eventInfo.location||EV.location; }
-      if(d.heroTexts){ HERO.h1=d.heroTexts.h1||HERO.h1; HERO.sub=d.heroTexts.sub||HERO.sub; HERO.btn=d.heroTexts.btn||HERO.btn; }
-      rebuildCatCounts(); buildCats(); render(); applyEV(); applyHero();
-      if((!d.imageCodes || !d.imageCodes.length) && callback) callback();
+      if(updated){ rebuildCatCounts(); buildCats(); render(); }
     })
-    .catch(function(){
-      // Server nedostupný — použi lokálne dáta
-      if(callback) callback();
+    .catch(function(e){
+      // Netlify Functions not available — use embedded data, that's fine
+      console.log('API not available, using embedded data:', e.message);
     });
   }
 
@@ -1100,7 +1118,6 @@ const CATS=["Všetky", "Farbičky", "Fixky", "Krúžidlá", "Nožnice", "Náčrt
     }
   };
 
-  // ── INIT ────────────────────────────────────────────────────────────────────
   document.addEventListener('DOMContentLoaded', function() {
     ['pmo','lmo','amo'].forEach(function(id){ document.getElementById(id).style.display='none'; });
     persistLoad(function() {
