@@ -36,8 +36,8 @@ body{font-family:'Inter',system-ui,sans-serif;background:#f8f5f0;color:var(--dar
 .hcta{margin-top:34px;display:inline-flex;align-items:center;gap:9px;background:var(--cr);color:#fff;padding:14px 34px;border-radius:14px;border:none;font-size:15px;font-weight:700;cursor:pointer;box-shadow:0 8px 28px rgba(134,19,56,.35);transition:var(--t);animation:fu .55s .27s ease both}
 .hcta:hover{background:var(--cr-d);transform:translateY(-2px);box-shadow:0 12px 36px rgba(134,19,56,.42)}
 .hcta:hover svg{transform:translateX(3px)}.hcta svg{transition:transform .2s}
-.sbar{background:#fff;border-bottom:1px solid var(--gray-m);padding:20px 24px}
-.sinn{max-width:900px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr);gap:16px;text-align:center}
+.sbar{background:#fff;border-bottom:1px solid var(--gray-m);padding:20px 24px;text-align:center}
+.sinn{max-width:900px;margin:0 auto;display:grid;grid-template-columns:repeat(3,1fr);gap:16px;text-align:center}
 .sn{font-size:28px;font-weight:900;color:var(--cr);letter-spacing:-.02em}.sl{font-size:12px;color:var(--gray);margin-top:3px;font-weight:500}
 @media(max-width:500px){.sinn{grid-template-columns:repeat(2,1fr)}}
 .pwrap{max-width:1320px;margin:0 auto;padding:36px 20px 80px}
@@ -318,6 +318,10 @@ const CATS=["Všetky"];
   'use strict';
 
   var APW = 'ggt2026admin';
+
+  function fmt(n) {
+    return Number(n).toFixed(2).replace('.', ',');
+  }
   var adminOk = false, lc = 0, lt = null;
   var st = { cat:'Všetky', q:'', sort:'name', view:'grid' };
   var SORTS = [
@@ -614,7 +618,7 @@ const CATS=["Všetky"];
     var el;
     el = document.createElement('div'); el.className = 'pcode'; el.textContent = '#' + p.code; body.appendChild(el);
     el = document.createElement('div'); el.className = 'pname'; el.textContent = p.name; body.appendChild(el);
-        el = document.createElement('div'); el.className = 'pnew'; el.textContent = p.priceAfter.toFixed(2) + ' \u20ac'; body.appendChild(el);
+        el = document.createElement('div'); el.className = 'pnew'; el.textContent = fmt(p.priceAfter)  + ' \u20ac'; body.appendChild(el);
     el = document.createElement('div'); el.className = 'punit'; el.textContent = 's DPH / ' + p.unit; body.appendChild(el);
     card.appendChild(body);
     return card;
@@ -636,7 +640,7 @@ const CATS=["Všetky"];
     row.appendChild(info);
 
     var pr = document.createElement('div'); pr.className = 'rprices';
-        el = document.createElement('div'); el.className = 'rnew'; el.textContent = p.priceAfter.toFixed(2) + ' \u20ac'; pr.appendChild(el);
+        el = document.createElement('div'); el.className = 'rnew'; el.textContent = fmt(p.priceAfter)  + ' \u20ac'; pr.appendChild(el);
     el = document.createElement('span'); el.className = 'rdisc'; el.textContent = '\u221230%'; pr.appendChild(el);
     row.appendChild(pr);
     return row;
@@ -650,7 +654,7 @@ const CATS=["Všetky"];
     document.getElementById('mocode').textContent = '#' + p.code;
     document.getElementById('moname').textContent = p.name;
     
-    document.getElementById('mopa').textContent = p.priceAfter.toFixed(2) + ' \u20ac';
+    document.getElementById('mopa').textContent = fmt(p.priceAfter)  + ' \u20ac';
     var qv = document.getElementById('moqty');
     qv.textContent = p.qty + ' ' + p.unit;
     qv.style.color = p.qty <= 4 ? '#c67c00' : '#15803d';
